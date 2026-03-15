@@ -264,30 +264,41 @@ def main():
     args = parser.parse_args()
 
     # 1. Configuration
+    base_url = "https://mmcdnprdcontent-fkd0cchabda7dkgb.a02.azurefd.net/"
     if args.vet:
         zip_filename = "MSDVetMedicalTopics.zip"
-        download_url = "https://mmcdnprdcontent.azureedge.net/MSDVetMedicalTopics.zip"
+        images_zip_filename = "MSDVetImages.zip"
     else:
         # Construct filename: MSD{Lang}{Version}MedicalTopics.zip
         l_str = "" if args.lang == "en" else args.lang.upper()
         v_str = args.version.capitalize()
         zip_filename = f"MSD{l_str}{v_str}MedicalTopics.zip"
-        download_url = f"https://mmcdnprdcontent.azureedge.net/{zip_filename}"
+        images_zip_filename = f"MSD{l_str}{v_str}Images.zip"
+    download_url = f"{base_url}{zip_filename}"
+    images_download_url = f"{base_url}{images_zip_filename}"
 
     base_dir = Path.cwd()
     zip_path = base_dir / zip_filename
+    images_zip_path = base_dir / images_zip_filename
     unzipped_dir = base_dir / Path(zip_filename).stem
 
     # 2. Download
     # Check if we need to download: if ZIP missing AND index.html missing inside target dir
-    need_download = not zip_path.exists() and not (unzipped_dir / "index.html").exists()
+    need_download = not (unzipped_dir / "index.html").exists()
 
     if need_download:
-        if not download_file(download_url, zip_path):
-            print("Critical Error: Download failed.")
-            sys.exit(1)
-    else:
-        print("Data files found. Skipping download.")
+        if not zip_path.exists():
+            if not download_file(download_url, zip_path):
+                print("Critical Error: Download failed.")
+                sys.exit(1)
+        else:
+            print("ZIP file already exists. Skipping download.")
+
+        if not images_zip_path.exists():
+            if not download_file(images_download_url, images_zip_path):
+                print("Warning: Images download failed. Continuing without images.")
+        else:
+            print("Images ZIP file already exists. Skipping images download.")
 
     # 3. Extract and Build
     if not (unzipped_dir / "index.html").exists():
@@ -295,6 +306,11 @@ def main():
             success = extract_zip(zip_path, unzipped_dir)
             if not success:
                 sys.exit(1)
+
+            # Extract images zip if available
+            if images_zip_path.exists():
+                if not extract_zip(images_zip_path, unzipped_dir):
+                    print("Warning: Images extraction failed. Continuing without images.")
 
             # Fetch favicon if possible
             try:
